@@ -1,0 +1,19 @@
+# Replace the example IP and subnet below with your own private network.
+# Save your edited copy OUTSIDE the Git checkout as Caddyfile.local.
+# Run Caddy as your normal user, from that private configuration directory.
+{
+    admin off
+    auto_https disable_redirects
+    skip_install_trust
+}
+https://192.168.1.50:9444 {
+    bind 192.168.1.50
+    tls internal
+    @allowed remote_ip 192.168.1.0/24
+    handle @allowed {
+        reverse_proxy 127.0.0.1:8876
+    }
+    handle {
+        respond "Private LAN / VPN access only" 403
+    }
+}

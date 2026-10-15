@@ -1,0 +1,41 @@
+# Python, JavaScript tooling and generated files
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+node_modules/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+*.zip
+*.tar.gz
+# Local configuration, credentials, certificates and private charts
+.env
+.env.*
+!.env.example
+Caddyfile.local
+access-password
+*.sqlite
+*.sqlite3
+*.db
+*.sqlite3-*
+*.db-*
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.se1
+ephe/
+data/
+backups/
+*-backup.json
+*.log
+# Editor / operating system files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
