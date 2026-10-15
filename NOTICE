@@ -20,6 +20,8 @@ These terms cover this project's original code and documentation.
 Third-party components retain their own copyright and license notices.
 See THIRD_PARTY_NOTICES.md. No additional field-of-use restrictions apply.
 
-Release 1.2.0 adds public-release documentation, portable startup,
-explicit network configuration, license notices and source distribution.
+Release 1.3.0 adds transit overlays, exact daily natal/composite transit
+hits, unknown-time noon charts and SSH/rsync release documentation. Release 1.2.0 added public-release
+documentation, portable startup, explicit network configuration,
+license notices and source distribution.
 See docs/CHANGELOG.md for changes to earlier versions.

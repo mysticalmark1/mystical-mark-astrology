@@ -2,7 +2,7 @@
 
 Issues and pull requests are welcome once this project is published on GitHub. Explain the problem, expected behavior and a reproducible example. Use fictional chart data; do not post clients' birth details, notes, backups, passwords or certificate keys.
 
-For calculation changes, state the astronomical convention and supply a primary reference and a focused regression test. Preserve explicit missing-data errors and avoid silent engine or house-system fallback. For UI changes, exercise natal, synastry, composite and progressed views, including wheel-specific selection.
+For calculation changes, state the astronomical convention and supply a primary reference and a focused regression test. Preserve explicit missing-data errors and avoid silent engine or house-system fallback. For UI changes, exercise natal, synastry, composite and progressed views, including mixed known/unknown birth times, per-chart house/angle suppression, wheel-specific selection, transit-only navigation and progressed-only transit remapping. For personal transit-hit changes, test fixed targets, retrograde repeats, wrap rejection, DST-local day boundaries and exact-hit selection.
 
 Follow the development commands in [README.md](README.md#development-and-contributions). Keep changes focused, update the relevant docs and changelog, and distinguish automated checks from devices/platforms you actually tested.
 

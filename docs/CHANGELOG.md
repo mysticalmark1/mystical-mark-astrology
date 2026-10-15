@@ -1,5 +1,20 @@
 # Changes
 
+## 1.3.0
+
+Combined release after 1.2.0; supersedes the earlier, unpublished transit-only 1.3.0 ZIP.
+
+- Unknown birth time option for saved birth charts: date-only entry, local-noon normalization and per-chart suppression of houses, Ascendant, MC, Vertex, Fortune and Spirit.
+- Unknown-time flags survive save/edit and JSON backup/restore; existing known-time records and other wheels retain their behavior. Progressions and composites derived from unknown-time sources retain appropriate omissions and warnings.
+
+- Optional transit wheel for natal, composite, progressed and synastry charts (up to six base charts plus transits).
+- Exact daily transit-to-natal/composite aspect hits, with fixed targets, wheel-specific selection and transit-local day boundaries.
+- Time navigation, Now and date/location edits move only transits; fixed chart views no longer silently return to current sky.
+- All existing aspect scopes, clearing, progressed-only view and synastry/composite conversion work with transits.
+- Personal hits include selected Moon and true south node; fixed angles/lots may be targets. Moving angles/lots are excluded from exact-hit searches with a visible warning.
+- SSH GitHub URLs for mysticalmark1, plus a reviewed rsync workflow, installation update steps and v1.3.0 tagging instructions.
+- Existing chart conventions, database schema, authentication and HTTPS configuration unchanged.
+
 ## 1.2.0
 
 - GitHub-ready README, installation, HTTPS/certificate, publishing and operations guides.

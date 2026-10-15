@@ -42,3 +42,11 @@ test('Progressed-only display preserves progressed data and restores biwheel wit
 test('Clear selection clears both object and aspect highlight decisions',()=>{
  assert(!C.objectSelected(null,0,'0'));assert(!C.aspectSelected(null,C.allAspects(raw)[0]));
 });
+test('Progressed-only with transits retains and remaps transit aspects and identities',()=>{
+ const input={...raw,transit_index:2,charts:[...raw.charts,{name:'Transit',aspects:[aspect]}],cross_aspects:[...raw.cross_aspects,{...aspect,ring_a:0,ring_b:2},{...aspect,ring_a:1,ring_b:2}]};
+ const original=JSON.stringify(input),view=C.displayResult(input,true);
+ assert.deepEqual(view.charts.map(c=>c.name),['Progressed','Transit']);assert.equal(view.transit_index,1);
+ assert.equal(C.filterAspects(view,'between').length,1);
+ const a=C.filterAspects(view,'between')[0];assert.equal(a.ring_a,0);assert.equal(a.ring_b,1);
+ assert.equal(C.filterAspects(view,'1').length,1);assert.equal(JSON.stringify(input),original);
+});

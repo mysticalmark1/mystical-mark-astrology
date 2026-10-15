@@ -12,7 +12,7 @@ const {JSDOM}=require('jsdom');
 const fs=require('node:fs');const path=require('node:path');const assert=require('node:assert/strict');
 const base=path.join(__dirname,'../app/static');
 const dom=new JSDOM(fs.readFileSync(path.join(base,'index.html'),'utf8'),{url:'http://127.0.0.1:8876',runScripts:'outside-only'});
-const w=dom.window;const $=id=>w.document.getElementById(id);const calls=[];
+const w=dom.window;w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};const $=id=>w.document.getElementById(id);const calls=[];
 const asp={a:'0',b:'1',a_name:'Sun',b_name:'Moon',name:'Square',glyph:'□',angle:90,orb:1,allowance:7,applying:true};
 const spec={name:'Natal A',datetime:'1990-05-01T14:00',timezone:'UTC',location:'Saskatoon',latitude:52,longitude:-106,fold:0};
 const bodies=[{key:'0',name:'Sun',glyph:'☉'},{key:'1',name:'Moon',glyph:'☽'}];
@@ -23,14 +23,16 @@ const event={title:'Sun square Moon',kind:'aspect',time:'2026-10-15T12:00:00+00:
 w.fetch=async(url,options)=>{calls.push({url,options});let data;
  if(url==='/api/meta')data=meta;
  else if(url.startsWith('/api/events'))data={events:[event],warnings:[]};
+ else if(url==='/api/transit-events')data={events:[{...event,kind:'transit_aspect',title:'Transit Moon square Natal Sun',keys:['0','1'],refs:[{ring:0,key:'0'},{ring:1,key:'1'}],fold:0}],warnings:[]};
  else if(url==='/api/chart'){
   const req=JSON.parse(options.body);let charts=req.mode==='composite'?[chart('Composite')]:req.mode==='progressed'?[chart('Natal'),chart('Progressed',1)]:req.charts.map((s,i)=>chart(s.name,i));
+  const transit_index=req.transit?charts.length:null;if(req.transit)charts.push({...chart('Transits',charts.length),datetime:req.transit.datetime+'+00:00'});
   let cross_aspects=[];for(let i=0;i<charts.length;i++)for(let j=i+1;j<charts.length;j++)cross_aspects.push({...asp,ring_a:i,ring_b:j,orb:.25});
-  data={mode:req.mode,charts,cross_aspects};
+  data={mode:req.mode,charts,cross_aspects,transit_index};
  }else if(url==='/api/charts')data=[];else throw Error(url);
  return {ok:true,json:async()=>data};};
 w.eval(fs.readFileSync(path.join(base,'chart-state.js'),'utf8'));
-w.eval(fs.readFileSync(path.join(base,'app.js'),'utf8')+`\nwindow.testUI={async open(mode,count=1){saved=Array.from({length:count},(_,i)=>({...current,id:String(i),name:'Natal '+i}));selected=new Set(saved.map(c=>c.id));await useSaved(mode);},state(){return {mode,chartContext,sidebarView,aspectScope,highlight,result,rawResult};}};`);
+w.eval(fs.readFileSync(path.join(base,'app.js'),'utf8')+`\nwindow.testUI={async open(mode,count=1){saved=Array.from({length:count},(_,i)=>({...current,id:String(i),name:'Natal '+i}));selected=new Set(saved.map(c=>c.id));await useSaved(mode);},openDialog,readDialog,state(){return {mode,chartContext,sidebarView,aspectScope,highlight,result,rawResult,specs,transitsEnabled,transitSpec};}};`);
 const tick=async()=>{for(let i=0;i<8;i++)await new Promise(r=>setImmediate(r));};
 const selectedObjects=()=>[...w.document.querySelectorAll('.svg-object[aria-pressed="true"]')];
 (async()=>{
@@ -55,9 +57,58 @@ const selectedObjects=()=>[...w.document.querySelectorAll('.svg-object[aria-pres
  $('progressedView').value='biwheel';$('progressedView').dispatchEvent(new w.Event('change'));assert.equal(w.testUI.state().result.charts.length,2);assert.equal(selectedObjects().length,0);
  await w.testUI.open('synastry',6);assert($('convertComposite').classList.contains('hidden'));assert.equal($('dayEvents').querySelectorAll('.aspect-choice').length,21);
  $('aspectScope').value='5';$('aspectScope').dispatchEvent(new w.Event('change'));$('dayEvents').querySelector('button').click();assert(selectedObjects().every(p=>p.dataset.ring==='5'));
- $('now').click();await tick();$('sidebarView').value='moments';$('sidebarView').dispatchEvent(new w.Event('change'));$('dayEvents').querySelector('button').click();await tick();assert.equal(selectedObjects().length,2);assert.equal(w.testUI.state().mode,'single');
+ $('single').click();await tick();$('sidebarView').value='moments';$('sidebarView').dispatchEvent(new w.Event('change'));$('dayEvents').querySelector('button').click();await tick();assert.equal(selectedObjects().length,2);assert.equal(w.testUI.state().mode,'single');
  $('clearSelection').click();assert.equal(selectedObjects().length,0);assert.equal(w.document.querySelectorAll('#dayEvents .selected').length,0);
+
+ // Transit navigation never replaces the fixed charts, in every supported mode.
+ for(const [mode,count,baseCount] of [['single',1,1],['composite',2,1],['synastry',6,6],['progressed',1,2]]){
+  await w.testUI.open(mode,count);const base=JSON.stringify(w.testUI.state().specs);
+  assert($('next').disabled);$('transitToggle').click();await tick();
+  let st=w.testUI.state();assert(st.transitsEnabled);assert.equal(st.result.charts.length,baseCount+1);assert(!$('next').disabled);
+  $('editTime').click();assert.equal($('dialogTitle').textContent,'Transit date & location');
+  $('inputDate').value='2026-10-20T09:30:00';$('inputTimezone').value='UTC';
+  $('chartForm').dispatchEvent(new w.Event('submit',{cancelable:true}));await tick();
+  assert.equal(w.testUI.state().mode,mode);assert.equal(JSON.stringify(w.testUI.state().specs),base);
+  assert(w.testUI.state().transitSpec.datetime.startsWith('2026-10-20T09:30'));
+  st=w.testUI.state();const oldTime=st.transitSpec.datetime;$('next').click();await tick();st=w.testUI.state();
+  assert.notEqual(st.transitSpec.datetime,oldTime);assert.equal(st.mode,mode);assert.equal(JSON.stringify(st.specs),base);
+  $('sidebarView').value='aspects';$('sidebarView').dispatchEvent(new w.Event('change'));
+  $('aspectScope').value=String(baseCount);$('aspectScope').dispatchEvent(new w.Event('change'));
+  assert.equal($('dayEvents').querySelectorAll('.aspect-choice').length,1);
+  $('previous').click();await tick();assert.equal(w.testUI.state().aspectScope,String(baseCount));
+  $('dayEvents').querySelector('button').click();assert(selectedObjects().every(p=>p.dataset.ring===String(baseCount)));
+  $('now').click();await tick();assert.equal(w.testUI.state().mode,mode);assert.equal(JSON.stringify(w.testUI.state().specs),base);
+  if(['single','composite'].includes(mode)){
+   $('sidebarView').value='moments';$('sidebarView').dispatchEvent(new w.Event('change'));
+   assert($('dayEvents').textContent.includes('Transit Moon square Natal Sun'));
+   $('dayEvents').querySelector('button').click();await tick();assert.equal(w.testUI.state().mode,mode);
+   assert.equal(w.testUI.state().transitSpec.datetime,'2026-10-15T12:00:00');
+   assert.deepEqual(selectedObjects().map(p=>p.dataset.ring).sort(),['0','1']);
+   assert.equal(JSON.stringify(w.testUI.state().specs),base);
+  }
+  if(mode==='progressed'){
+   $('progressedView').value='only';$('progressedView').dispatchEvent(new w.Event('change'));
+   assert.equal(w.testUI.state().result.charts.length,2);assert.equal(w.testUI.state().result.transit_index,1);
+   $('next').click();await tick();assert.equal(w.testUI.state().result.charts[0].name,'Progressed');
+  }
+  $('transitToggle').click();await tick();assert(!w.testUI.state().transitsEnabled);assert.equal(w.testUI.state().mode,mode);
+ }
+ await w.testUI.open('synastry',2);$('transitToggle').click();await tick();
+ const transitTime=w.testUI.state().transitSpec.datetime;
+ $('convertComposite').click();await tick();assert.equal(w.testUI.state().result.charts.length,2);
+ assert.equal(w.testUI.state().transitSpec.datetime,transitTime);
+ $('returnSynastry').click();await tick();assert.equal(w.testUI.state().result.charts.length,3);
+
+ w.testUI.openDialog('new',{...spec,datetime:'1990-05-01T03:15:00'});
+ $('inputUnknownTime').checked=true;$('inputUnknownTime').dispatchEvent(new w.Event('change'));
+ assert.equal($('inputDate').type,'date');assert($('inputFold').disabled);
+ let input=w.testUI.readDialog();assert(input.unknown_time);assert.equal(input.datetime,'1990-05-01T12:00:00');assert.equal(input.timezone,'UTC');
+ $('inputDate').value='1990-05-02';$('inputUnknownTime').checked=false;$('inputUnknownTime').dispatchEvent(new w.Event('change'));
+ input=w.testUI.readDialog();assert(!input.unknown_time);assert(input.datetime.startsWith('1990-05-02T03:15'));assert(!$('inputFold').disabled);
+ w.testUI.openDialog('edit',{...spec,unknown_time:true,datetime:'1990-05-01T12:00:00'},'example');
+ assert($('inputUnknownTime').checked);assert.equal($('inputDate').type,'date');
+ w.testUI.openDialog('transit',spec);assert($('unknownTimeControl').classList.contains('hidden'));assert(!w.testUI.readDialog().unknown_time);assert.equal($('inputDate').type,'datetime-local');
  assert(!$('status').classList.contains('error'),$('status').textContent);
- console.log('PASS: moments/aspects toggle, natal defaults, all scope filters, exact wheel selection, clear, in-chart composite round trip, progressed-only round trip, six-wheel scopes, table selection, moment navigation.');
+ console.log('PASS: moments/aspects toggle, natal defaults, all scope filters, exact wheel selection, clear, in-chart composite round trip, progressed-only round trip, six-wheel scopes, table selection, moment navigation; transit overlays, fixed-base navigation, exact-hit selection, transit scopes, progressed remapping and composite conversion.');
  dom.window.close();
 })().catch(e=>{console.error(e);dom.window.close();process.exitCode=1;});

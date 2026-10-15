@@ -23,10 +23,16 @@ function objectSelected(selection,ring,key){return !!selection?.refs?.some(r=>r.
 function aspectSelected(selection,a){
  if(!selection)return false;
  if(selection.aspectId)return selection.aspectId===a.id;
- return selection.angle!==undefined&&Math.abs(a.angle-selection.angle)<.001&&objectSelected(selection,a.ring_a,a.a)&&objectSelected(selection,a.ring_b,a.b);
+ return (!selection.aspect_name||selection.aspect_name===a.name)&&selection.angle!==undefined&&Math.abs(a.angle-selection.angle)<.001&&objectSelected(selection,a.ring_a,a.a)&&objectSelected(selection,a.ring_b,a.b);
 }
 function displayResult(raw,progressedOnly){
- return raw.mode==='progressed'&&progressedOnly?{...raw,charts:[raw.charts[1]],cross_aspects:[]}:raw;
+ if(raw.mode!=='progressed'||!progressedOnly)return raw;
+ // Hide the natal reference wheel, retaining and remapping the transit wheel.
+ const keep=raw.charts.map((_,i)=>i).filter(i=>i!==0);
+ const remap=i=>keep.indexOf(i);
+ return {...raw,charts:keep.map(i=>raw.charts[i]),
+  transit_index:raw.transit_index==null?null:remap(raw.transit_index),
+  cross_aspects:raw.cross_aspects.filter(a=>keep.includes(a.ring_a)&&keep.includes(a.ring_b)).map(a=>({...a,ring_a:remap(a.ring_a),ring_b:remap(a.ring_b)}))};
 }
 const api={aspectId,allAspects,filterAspects,objectSelected,aspectSelected,displayResult};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;

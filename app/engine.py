@@ -114,10 +114,15 @@ class Engine:
         return sorted(out,key=lambda a:a['orb'])
 
     def chart(self,spec,settings,jd_override=None):
+        unknown_time=bool(spec.get('unknown_time',False))
+        if unknown_time:
+            spec=dict(spec,datetime=datetime.fromisoformat(spec['datetime']).date().isoformat()+'T12:00:00',fold=0)
+            settings={**settings,'houses':False,'objects':[k for k in settings['objects'] if k not in ('asc','mc','vertex','fortune','spirit')]}
         dt=local_datetime(spec['datetime'],spec.get('timezone',settings['timezone']),spec.get('fold',0))
         jd=to_jd(dt) if jd_override is None else jd_override
         if not 1800<=from_jd(jd).year<=2399: raise ValueError('Supported chart dates: 1800–2399 CE, Gregorian calendar.')
         objects=[]; warnings=[]
+        if unknown_time:warnings.append('Unknown birth time: local noon is an approximation. Houses, Ascendant, MC, Vertex, Fortune and Spirit are omitted. Positions (especially Moon), progressions and exact transit hits depend on the assumed noon time.')
         for key in settings['objects']:
             if key in ('south_node','asc','mc','vertex','fortune','spirit'): continue
             try: objects.append(self.pos(jd,key).copy())
@@ -146,7 +151,7 @@ class Engine:
             except swe.Error:
                 warnings.append('Placidus unavailable at this latitude/date. Houses and angle-dependent points omitted; no alternate house system used.')
         for p in objects: p['house']=house_of(p['lon'],houses)
-        return dict(name=spec.get('name','Current sky'),datetime=stamp(jd,spec.get('timezone',settings['timezone'])),jd=jd,location=spec.get('location',settings['location']),latitude=lat,longitude=lon,timezone=spec.get('timezone',settings['timezone']),objects=objects,houses=houses,angles=angles,warnings=warnings,aspects=self.aspects(objects,objects,settings),method='Tropical • geocentric • apparent • '+self.mode)
+        return dict(name=spec.get('name','Current sky'),unknown_time=unknown_time,datetime=dt.astimezone(ZoneInfo(spec.get('timezone',settings['timezone']))).isoformat(timespec='seconds') if unknown_time and jd_override is None else stamp(jd,spec.get('timezone',settings['timezone'])),jd=jd,location=spec.get('location',settings['location']),latitude=lat,longitude=lon,timezone=spec.get('timezone',settings['timezone']),objects=objects,houses=houses,angles=angles,warnings=warnings,aspects=self.aspects(objects,objects,settings),method='Tropical • geocentric • apparent • '+self.mode)
 
     def orb_boundary(self,t,a,b,angle,orb,direction):
         f=lambda j:abs(abs(wrap(self.pos(j,b)['lon']-self.pos(j,a)['lon']))-angle)-orb
@@ -207,6 +212,50 @@ class Engine:
             cycles.append(dict(key=key,name=self.pos(sr,key)['name'],station_retrograde=sr,station_direct=sd,pre_shadow=ps,post_shadow=pe,from_position=placement(hi),to_position=placement(lo),phases=phases))
         return cycles
 
+    def transit_events(self,target,transit,settings,transit_ring=1):
+        """Exact moving-to-fixed longitude hits within one transit-local calendar day.
+
+        Targets are the already calculated natal or midpoint-composite positions.
+        Moon is included when selected, independently of the mundane timeline toggle.
+        """
+        tz=transit['timezone']
+        instant=local_datetime(transit['datetime'],tz,transit.get('fold',0)).astimezone(ZoneInfo(tz))
+        day=instant.date().isoformat()
+        if not 1800<=instant.year<=2398:raise ValueError('Exact transit-hit dates: 1800–2398.')
+        start=local_datetime(day+'T00:00:00',tz)
+        end=local_datetime((instant.date()+timedelta(days=1)).isoformat()+'T00:00:00',tz)
+        a,b=to_jd(start),to_jd(end);events=[];warnings=list(target['warnings'])
+        excluded={'asc','mc','vertex','fortune','spirit'}
+        if excluded.intersection(settings['objects']):
+            warnings.append('Moving angles and lots are excluded from exact-hit searches; their wheel aspects remain available. Fixed natal/composite angles and lots are included as targets.')
+        def position(j,key):
+            if key=='south_node':
+                p=self.pos(j,'11');return dict(p,key=key,name='South Node (true)',lon=(p['lon']+180)%360)
+            return self.pos(j,key)
+        for key in settings['objects']:
+            if key in excluded:continue
+            try:
+                moving=position(a,key);position(b,key)
+                for fixed in target['objects']:
+                    for asp in settings['aspects']:
+                        if not asp['enabled']:continue
+                        for angle in {asp['angle'],(-asp['angle'])%360}:
+                            f=lambda j:wrap(position(j,key)['lon']-fixed['lon']-angle)
+                            speed=lambda j:position(j,key)['speed']
+                            for r in roots(f,a,b,derivative=speed,angular=True):
+                                # UT1/UTC floating-point round trips can straddle midnight
+                                # by microseconds. Keep display times inside the searched day.
+                                hit_dt=max(start,min(from_jd(r),end-timedelta(microseconds=1))).astimezone(ZoneInfo(tz))
+                                events.append(dict(jd=r,kind='transit_aspect',keys=[fixed['key'],key],
+                                    refs=[dict(ring=0,key=fixed['key']),dict(ring=transit_ring,key=key)],
+                                    title=f"Transit {moving['name']} {asp['name'].lower()} {target['name']} · {fixed['name']}",
+                                    angle=asp['angle'],aspect_name=asp['name'],orb=asp['orb'],
+                                    time=hit_dt.isoformat(timespec='seconds'),fold=hit_dt.fold))
+            except (ValueError,swe.Error) as ex:warnings.append(str(ex))
+        events.sort(key=lambda e:(e['title'],e['jd']) if settings['sort']=='name' else e['jd'])
+        return dict(events=events,warnings=list(dict.fromkeys(warnings)),day=day,days=1,timezone=tz,
+                    target=target['name'],scope='transit_to_fixed')
+
     def events(self,day,tz,settings,days=1):
         start=local_datetime(day+'T00:00:00',tz); end=local_datetime((datetime.fromisoformat(day)+timedelta(days=days)).date().isoformat()+'T00:00:00',tz)
         a,b=to_jd(start),to_jd(end); events=[];warnings=[]; keys=[]
@@ -265,4 +314,4 @@ def composite(a,b,settings,engine):
         if abs(sum((houses[(i+1)%12]-houses[i])%360 for i in range(12))-360)>1e-5:
             houses=[];warnings.append('Midpoint cusps are not in zodiacal order. Composite houses omitted rather than silently flipping cusps.')
     for p in objects:p['house']=house_of(p['lon'],houses)
-    return dict(name=f"{a['name']} + {b['name']}",datetime='Midpoint composite',objects=objects,houses=houses,angles={},warnings=warnings,aspects=engine.aspects(objects,objects,settings),method='Short-arc ecliptic midpoint composite • cusps derived from natal Placidus',location='Derived from two natal charts',timezone=a['timezone'],sources=[a,b])
+    return dict(name=f"{a['name']} + {b['name']}",unknown_time=a.get('unknown_time',False) or b.get('unknown_time',False),datetime='Midpoint composite',objects=objects,houses=houses,angles={},warnings=warnings,aspects=engine.aspects(objects,objects,settings),method='Short-arc ecliptic midpoint composite • '+('noon-based source; houses omitted' if a.get('unknown_time') or b.get('unknown_time') else 'cusps derived from natal Placidus'),location='Derived from two natal charts',timezone=a['timezone'],sources=[a,b])

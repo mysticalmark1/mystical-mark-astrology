@@ -37,7 +37,7 @@ Download a new source release into a separate folder. Back up first. For install
 
 For portable installations, stop the app, back up data, extract the new source, recreate its `.venv`, install its requirements, then launch with the same OS account and data-path override. Do not overwrite or move runtime data into the repository.
 
-Release 1.2.0 changes neither the database schema nor calculation methods.
+The combined release 1.3.0 upgrades directly from 1.2.0, adding unknown-time birth records and a separate fixed-target transit-hit solver without changing existing chart calculation conventions or the database schema. Your existing password, charts, settings, ephemerides and gateway configuration are retained. For syncing the release ZIP into a Git checkout and tagging it over SSH, follow [PUBLISHING.md](PUBLISHING.md).
 
 ## Linux code rollback
 
@@ -68,3 +68,5 @@ systemctl --user disable --now mystical-mark-astrology-gateway.service
 ```
 
 The second command applies only if the gateway was configured. Data and source releases remain available. Do not disable user lingering if other services rely on it. To remove a trusted CA, follow the client-specific instructions in [HTTPS.md](HTTPS.md).
+
+Unknown-time records require 1.3.0 or newer to respect their house/angle omissions. A rollback to 1.2.0 retains the stored data but that older code does not interpret the unknown-time flag; do not rely on its house/angle output for those records.

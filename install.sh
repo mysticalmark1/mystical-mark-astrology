@@ -16,7 +16,7 @@ source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 app_root="$HOME/.local/lib/mystical-mark-astrology"
 data_root="$HOME/.local/share/mystical-mark-astrology"
 config_root="$HOME/.config/mystical-mark-astrology"
-release="$app_root/releases/1.2.0-$(date +%Y%m%d%H%M%S)-$$"
+release="$app_root/releases/1.3.0-$(date +%Y%m%d%H%M%S)-$$"
 mkdir -p "$app_root/releases" "$data_root" "$config_root" "$HOME/.config/systemd/user"
 if [[ "$HOME" == *' '* || "$HOME" == *'%'* ]]; then echo 'This installer requires a home path without spaces or percent signs.' >&2; exit 1; fi
 command -v python3 >/dev/null || { echo 'Install Python: sudo pacman -S --needed python python-pip base-devel'; exit 1; }

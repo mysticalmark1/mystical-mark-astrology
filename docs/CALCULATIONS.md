@@ -93,3 +93,23 @@ The local gateway uses Caddy's explicit interface binding, socket remote-IP matc
 - [Caddy bind directive](https://caddyserver.com/docs/caddyfile/directives/bind)
 - [Caddy remote_ip matcher](https://caddyserver.com/docs/caddyfile/matchers#remote-ip)
 - [Caddy global options](https://caddyserver.com/docs/caddyfile/options)
+
+## Personal transit hits
+
+Version 1.3.0 adds a separate moving-to-fixed solver for a natal or short-arc midpoint-composite target. The target longitudes come from the same calculated chart displayed on screen. They remain fixed throughout the search, including angles/lots and composite points. A composite is a midpoint construction, not a physical ephemeris epoch.
+
+For each selected moving object and fixed target object, each enabled aspect solves `wrap(transit_longitude(t) − fixed_longitude − signed_angle) = 0`. Both orientations are searched, with conjunction/opposition orientations deduplicated. Same-name objects on different wheels are distinct (for example transit Sun conjunct natal Sun). The existing three-hour bracketing, speed-reversal subdivision, wrap rejection and 0.1-second bisection are reused. Direct and retrograde passages are separate hits when both occur in the window. As with the existing solver, extremely close tangencies or unusual high-speed objects need independent validation; this is not a completeness proof.
+
+The window is local midnight through, but excluding, the next local midnight in the transit time zone, so DST days can have 23 or 25 hours. Dates are restricted to 1800–2398. Displayed times include UTC offset; repeated-hour selection preserves the hit's DST occurrence. The entire selected day is searched, not just future hits after the displayed time. Aspect orbs control the full aspect list; personal peak lists contain exact hits and do not search orb-entry/exit times.
+
+Selected Moon hits are included regardless of the mundane timeline's ordinary-Moon toggle. Moving true south node uses the true node plus 180°. Fixed stars and asteroids require the same available data as chart calculations. Moving Ascendant, MC, Vertex, Fortune and Spirit are excluded from exact searches, with a warning; they remain available as fixed targets and as positions/aspects on the wheels. Missing data remains visible and is never silently substituted.
+
+Transit wheels are appended to the displayed chart collection; their positions and cross-aspects are calculated against each base wheel. Progressed-only presentation removes the natal reference wheel and remaps the remaining wheel indices without recalculating the progression. Navigation changes only the transit inputs; the progression target is not advanced automatically. Cross-wheel applying/separating labels remain suppressed because native natal/progressed object speeds are not a meaningful shared time derivative for every comparison.
+
+## Unknown birth times
+
+`unknown_time` is a per-record Boolean, defaulting to false for older records. Saving or requesting an unknown-time chart normalizes its supplied local calendar date to 12:00:00 with the supplied IANA time zone and fold 0. The engine also enforces this when called directly. Settings are copied per chart before disabling houses and removing Ascendant, MC, Vertex, Fortune and Spirit; global settings and other wheels are not altered.
+
+Planets, nodes and other time-independent formula selections are calculated at the assumed noon epoch, not averaged across the birth day. Their longitudes still depend on the assumed epoch; this feature does not calculate uncertainty bands or rectify birth times. Progressions use that noon birth epoch and keep houses/angle-dependent points omitted for both natal-reference and quotidian modes. Composite points are the shared available source objects; if either time is unknown there are no composite houses or time-dependent points. Exact transit hits use the resulting assumed fixed positions and carry their source warnings.
+
+Chart records and backups preserve the flag without changing the SQLite schema. Missing flags are treated as known-time for backward compatibility with existing data. The transit wheel itself requires a known time.

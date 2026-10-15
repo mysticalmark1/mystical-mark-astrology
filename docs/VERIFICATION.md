@@ -1,5 +1,17 @@
 # Verification record
 
+## Release 1.3.0 update checks
+
+- Reviewed the public `mysticalmark1/mystical-mark-astrology` main-branch source and retained its README edits before adding this release's documentation. No remote branch/tag was written during preparation.
+- All **31 Python tests** passed on Linux/Python 3.12. Transit checks cover exact Moon-to-fixed-angle timing, both passes around a synthetic retrograde station, angular-wrap rejection, DST 23/25-hour days with half-open midnight boundaries, and residuals against actual natal and two-distinct-chart composite targets.
+- API checks cover all four chart modes, six-person synastry plus transits, unchanged base wheels when the transit date advances, overlay removal, input validation and mutation protection. Existing calculation, storage, source/privacy and launcher tests continue to pass.
+- Four additional unknown-time tests cover local-noon conversion, per-chart settings isolation, both progression-house modes, mixed known/unknown synastry, composite omissions, known-time transit houses, save/edit, backup/restore and legacy records.
+- All **six JavaScript state tests** passed, including progressed-only transit-wheel/aspect-index remapping.
+- The expanded DOM interaction smoke test passed: add/remove transits in each mode, next/previous/Now, transit date/location dialog, fixed input preservation, transit-only aspect scopes, exact-hit navigation and pair highlights, progressed-only transits, and transit-preserving synastry/composite conversion. Existing sidebar, table and clear-selection checks remain covered. The form test covers unknown-time checkbox/date-only entry, noon serialization, editing back to known time and keeping transit time entry separate.
+- Python compilation, JavaScript syntax and installer shell syntax passed. Local documentation link targets resolve. The dependency list, database schema, authentication and gateway configuration are unchanged.
+- These are numerical/API and simulated-DOM checks, not rendered browser or device tests. Native Windows/macOS deployment, seven-wheel visual layout, phone touch behavior, real service updates and HTTPS on user devices remain untested here. The existing upstream TestClient/HTTPX deprecation warning remains non-fatal.
+
+
 ## Release 1.2.0 update checks
 
 - All 21 Python calculation/API/release tests passed on Linux with Python 3.12. New checks cover authenticated license/source routes, archive completeness and exclusion of runtime files/symlinks, portable path selection, private-address validation, password persistence and loopback-only launch arguments.

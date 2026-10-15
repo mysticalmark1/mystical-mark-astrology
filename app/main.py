@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 import swisseph as swe
 from .engine import Engine,DEFAULTS,NAMES,GLYPHS,SIGNS,SIGN_GLYPHS,RULERS,local_datetime,to_jd,stamp,composite
 
@@ -86,22 +86,35 @@ class Spec(BaseModel):
     longitude:float=Field(default=-106.67,ge=-180,le=180)
     location:str=Field(default='Saskatoon',max_length=200)
     fold:int=Field(default=0,ge=0,le=1)
+    unknown_time:bool=False
     notes:str=Field(default='',max_length=20000)
+
+    @model_validator(mode='after')
+    def normalize_unknown_time(self):
+        if self.unknown_time:
+            day=datetime.fromisoformat(self.datetime).date().isoformat()
+            self.datetime=day+'T12:00:00'
+            self.fold=0
+        return self
 
 class ChartRequest(BaseModel):
     charts:list[Spec]=Field(min_length=1,max_length=6)
     mode:str='single'
     target:str|None=None
     houses:bool|None=None
+    transit:Spec|None=None
 
 @app.get('/api/meta')
-def meta():return dict(version='1.2.0',swisseph=swe.version,settings=settings(),bodies=[dict(key=str(i),name=n,glyph=GLYPHS[i]) for i,n in enumerate(NAMES) if i!=14],signs=SIGNS,sign_glyphs=SIGN_GLYPHS,rulers=RULERS)
+def meta():return dict(version='1.3.0',swisseph=swe.version,settings=settings(),bodies=[dict(key=str(i),name=n,glyph=GLYPHS[i]) for i,n in enumerate(NAMES) if i!=14],signs=SIGNS,sign_glyphs=SIGN_GLYPHS,rulers=RULERS)
 
 @app.post('/api/chart')
 def chart(req:ChartRequest):
     s=settings()
     if req.houses is not None:s['houses']=req.houses
     if req.mode not in ('single','synastry','composite','progressed'):raise ValueError('Unknown chart mode')
+    if req.transit is not None and req.transit.unknown_time:raise ValueError('Choose a known time for the transit wheel.')
+    if req.mode=='single' and len(req.charts)!=1:raise ValueError('A single chart requires exactly one chart.')
+    if req.mode=='synastry' and len(req.charts)<2:raise ValueError('Synastry requires at least two charts.')
     with LOCK:
         e=engine(s['engine']);specs=[p.model_dump() for p in req.charts];charts=[e.chart(p,s) for p in specs]
         if req.mode=='composite':
@@ -121,13 +134,31 @@ def chart(req:ChartRequest):
                 from .engine import house_of
                 pc['houses']=charts[0]['houses'];pc['angles']=charts[0]['angles']
                 for p in pc['objects']:p['house']=house_of(p['lon'],pc['houses'])
+            if specs[0].get('unknown_time'):
+                pc['method']='Secondary day/year • 365.242190402-day year • noon-based birth time; houses omitted'
             charts=[charts[0],pc]
+        transit_index=None
+        if req.transit is not None:
+            transit_index=len(charts)
+            tc=e.chart(req.transit.model_dump(),s);tc['name']='Transits • '+tc['name'];tc['role']='transit'
+            charts.append(tc)
         cross=[]
         if len(charts)>1:
             for i in range(len(charts)):
                 for j in range(i+1,len(charts)):
                     for a in e.aspects(charts[i]['objects'],charts[j]['objects'],s,True):cross.append(dict(a,ring_a=i,ring_b=j))
-        return dict(charts=charts,cross_aspects=cross,mode=req.mode)
+        return dict(charts=charts,cross_aspects=cross,mode=req.mode,transit_index=transit_index)
+
+@app.post('/api/transit-events')
+def transit_events(req:ChartRequest):
+    if req.transit is None or req.mode not in ('single','composite'):
+        raise ValueError('Exact transit hits require a natal or composite chart and a transit time.')
+    s=settings()
+    if req.houses is not None:s['houses']=req.houses
+    # The same chart builder supplies fixed targets and respects all chart settings.
+    with LOCK:
+        result=chart(req)
+        return engine(s['engine']).transit_events(result['charts'][0],req.transit.model_dump(),s,result['transit_index'])
 
 @app.get('/api/events')
 def events(day:str,tz:str='America/Regina',days:int=1):
